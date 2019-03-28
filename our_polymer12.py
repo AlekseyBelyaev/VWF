@@ -11,6 +11,7 @@ import espressomd.lb
 	
 import os
 
+
 def calc(var):
 
     # AVB: Create an output directory for this to store the output files
@@ -132,23 +133,42 @@ def calc(var):
     system.auto_update_accumulators.add(c)
     
     print("Sampling started.")
-    print("lenth1")
+    print("lenth after warmup")
     print(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0])
     
     lengths = []
+    
+    ylengths=[]
     
     for i in range(loops):
         system.integrator.run(step_per_loop)
         system.analysis.append()
         lengths.append(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0]) 
-        lbf.print_vtk_velocity(outdir+"/fluid%04i.vtk" %i)
-        system.part.writevtk(outdir+"/vwf_all%04i.vtk" %i) 
+        lbf.print_vtk_velocity(outdir+"/"+str(vy)+"%04i.vtk" %i)
+        system.part.writevtk(outdir+"/"+str(vy)+"vwf_all%04i.vtk" %i) 
+        
+        cor = list(system.part[:].pos)
+        y = []
+        for l in cor:
+            y.append(l[1])
+        ylengths.append(max(y) - min(y))
+        
         sys.stdout.write("\rSampling: %05i"%i)
         sys.stdout.flush()
         
     with open(outdir+"/lengths"+str(vy)+".dat","a") as datafile:
         datafile.write("\n".join(map(str,lengths)))
+        
+    with open(outdir+"/lengthsY"+str(vy)+".dat","a") as datafile:
+                datafile.write("\n".join(map(str, ylengths)))  
+                
+    mean_vy = [(vy * 10000) / 32, sum(ylengths)/len(ylengths)]
     
+    print("mean_vy")
+    print(mean_vy)
+                
+    with open(outdir+"/mean_vy" + "2kBT_2r0" + ".dat","a") as datafile:
+                datafile.write(" ".join(map(str, mean_vy)))     
     
     c.finalize()
     corrdata = c.result()
@@ -162,8 +182,4 @@ def calc(var):
         rh = system.analysis.calc_rh(chain_start=0, number_of_chains=1, chain_length=mpc-1)
         datafile.write(str(mpc)+ "    " + str(rh[0])+"\n")
     
-    print("lenth")    
-    
-    print(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1))
-
-    
+   
