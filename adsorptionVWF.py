@@ -15,7 +15,8 @@ import os
 def calc(var, loopsnumber):
 
     # AVB: Create an output directory for this to store the output files
-    outdir = "./Noelle/out-adsorpVWF/SR=" + str(var)
+    outdir = "./Noelle/out-adsorpVWF_ww/SR=" + str(var)
+    
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     
@@ -31,13 +32,14 @@ def calc(var, loopsnumber):
     lscale= 1e-6
  
     # per um^2
-    collagen_density = 1
+    collagen_density = 3
 
     a = 0.05
     r0 = 2.0*a
     kBT = 4.0e-6
     vwf_type = 0
     collagen_type = 1
+    wall_type = 2
     monomer_mass = 0.01
     N_vwf = 1    
 
@@ -71,7 +73,7 @@ def calc(var, loopsnumber):
     
     # Setup polymer of part_id 0 with fene bond
     # AVB: Notice the mode, max_tries and shield parameters for pruned self-avoiding random walk algorithm 
-    polymer.create_polymer(N_P=1, MPC=mpc, bond=fene, bond_length=r0, start_pos = [bot_wall_dist+0.2, box_l*0.5, box_l*0.5], mode=2, max_tries=100, shield=0.6*r0)
+    polymer.create_polymer(N_P=1, MPC=mpc, bond=fene, bond_length=r0, start_pos = [bot_wall_dist+2*a, box_l*0.5, box_l*0.5], mode=2, max_tries=100, shield=0.6*r0)
     
     
     next_part_id = mpc * N_vwf  
@@ -82,6 +84,23 @@ def calc(var, loopsnumber):
     system.part[:].type = vwf_type
     system.part[:].mass = monomer_mass
     
+    # AVB: Shifting the polymer closer to the wall
+    print(system.part[:].pos)
+    px=[ ]
+    for p in system.part[:].pos:
+        px.append(p[0])
+    minx = np.min(px)
+    print("closest x coord = %f" % minx)
+    print("\nmoving polymer to closer to the wall")
+    for pid in range(next_part_id):
+        p = system.part[pid].pos
+        posx = p[0] - minx +bot_wall_dist
+        posy = p[1]
+        posz = p[2]
+        print([posx, posy, posz])
+        system.part[pid].pos = [posx, posy, posz]
+        
+
     # AVB: I suggest to add Lennard-Jones interaction between the monomers
     # AVB: to reproduce hydrophobicity
     # AVB: parameters for the potential (amplitude and cut-off redius)
@@ -138,8 +157,7 @@ def calc(var, loopsnumber):
     walls[1].set_params(shape=shapes.Wall(normal=[-1,0,0], dist = -1.0*top_wall_dist), velocity=v)
     for wall in walls:
         system.lbboundaries.add(wall)
-
-
+    
 
     # AVB:  Put some adhesive sites on the bottom wall     
     # AVB:  N is a number of collagen binding sites on a surface
@@ -162,12 +180,23 @@ def calc(var, loopsnumber):
 
     # AVB: Setting adsorption potential vwf-coll
     ### AVB: parameters for the potential (amplitude and cut-off redius)
-    amplVwfCol = 50.0*kBT    # sometimes we change this to 2.0*kBT  
-    rcutVwfCol = 2.0*r0
+    amplVwfCol = 500.0*kBT    # COLLAGEN ADSORPTION 
+    rcutVwfCol = 1.2*r0
     ### And the potential
     system.non_bonded_inter[vwf_type,collagen_type].lennard_jones.set_params(
               epsilon = amplVwfCol, sigma = r0/1.122,
-              shift = "auto", cutoff = rcutVwfCol, min = r0*0.6)    
+              shift = "auto", cutoff = rcutVwfCol, min = r0*0.6) 
+    
+    # Setting repulsive potential vwf-wall
+    
+    system.constraints.add(shape=shapes.Wall(normal=[1,0,0], dist = (bot_wall_dist-2*a)), particle_type=wall_type, penetrable=True)       
+    
+    ### AVB: parameters for the potential (amplitude and cut-off radius)
+    amplVwlCol = 1e-5  
+    rcutVwlCol = 2.0*a
+    ### And the potential
+    system.non_bonded_inter[vwf_type,wall_type].soft_sphere.set_params(
+    a = amplVwlCol, n = 1.2,cutoff = rcutVwlCol, offset = -0.5*a)     
     
     
     # configure correlators
@@ -178,7 +207,7 @@ def calc(var, loopsnumber):
     
     
     print("Sampling started.")
-    print("length after warmup")
+    print("length after warmup:")
     print(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0])
     
     lengths = []
@@ -201,6 +230,7 @@ def calc(var, loopsnumber):
         sys.stdout.write("\rSampling: %05i"%i)
         sys.stdout.flush()
     
+    sys.stdout.write("\n")
     # AVB: Removing LBB with shear
     for wall in walls:
         system.lbboundaries.remove(wall) 
@@ -210,7 +240,7 @@ def calc(var, loopsnumber):
     for wall in walls:
         system.lbboundaries.add(wall)   
         
-    for i in range(0):
+    for i in range(100):
         system.integrator.run(step_per_loop)
         lengths.append(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0])
     
@@ -246,5 +276,5 @@ def calc(var, loopsnumber):
 
 # main course
 
-calc(int(sys.argv[1]), 200)
+calc(int(sys.argv[1]), 1000)
    
