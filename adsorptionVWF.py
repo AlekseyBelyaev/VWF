@@ -138,22 +138,21 @@ def calc(var, loopsnumber):
 
     # AVB: Setting adsorption potential vwf-coll
     ### AVB: parameters for the potential (amplitude and cut-off redius)
-    amplVwfCol = 200.0*kBT    # COLLAGEN ADSORPTION 
-    rcutVwfCol = 1.2*r0
+    amplVwfCol = 100.0*kBT    # COLLAGEN ADSORPTION 
+    rcutVwfCol = 2.5*r0
     ### And the potential
     system.non_bonded_inter[vwf_type,collagen_type].lennard_jones.set_params(
               epsilon = amplVwfCol, sigma = r0/1.122,
-              shift = "auto", cutoff = rcutVwfCol, min = r0*0.9) 
+              shift = "auto", cutoff = rcutVwfCol, min = r0*0.7) 
     
     # Setting repulsive potential vwf-wall
-    
     system.constraints.add(shape=shapes.Wall(normal=[1,0,0], dist = (bot_wall_dist-2*a)), particle_type=wall_type, penetrable=True)       
     
     ### AVB: parameters for the potential (amplitude and cut-off radius)
-    amplSS = 1e-5        # SOFT SPHERE
-    rcutSS = 2.0*a
+    amplSS = 1e-4        # SOFT SPHERE
+    rcutSS = 3.0*a
     ### And the potential
-    system.non_bonded_inter[vwf_type,wall_type].soft_sphere.set_params(a = amplSS, n = 1.2, cutoff = rcutSS, offset = -a)     
+    system.non_bonded_inter[vwf_type,wall_type].soft_sphere.set_params(a = amplSS, n = 1.2, cutoff = rcutSS, offset = -0.5*a)     
     
     
 #----------/*INITIAL WARMUP*/-----------------
