@@ -41,7 +41,7 @@ def calc(var, loopsnumber):
     collagen_type = 1
     wall_type = 2
     monomer_mass = 0.01
-    N_vwf = 1    
+    N_vwf = 20    
 
     box_l = 8.0
     bot_wall_dist = 1.0
@@ -73,9 +73,14 @@ def calc(var, loopsnumber):
     
     # Setup polymer of part_id 0 with fene bond
     # AVB: Notice the mode, max_tries and shield parameters for pruned self-avoiding random walk algorithm 
-    polymer.create_polymer(N_P=1, MPC=mpc, bond=fene, bond_length=r0, start_pos = [bot_wall_dist+2*a, box_l*0.5, box_l*0.5], mode=2, max_tries=100, shield=0.6*r0)
+    polymer.create_polymer(N_P=N_vwf, MPC=mpc, bond=fene, bond_length=r0, start_pos = [bot_wall_dist+2*a, box_l*0.25, box_l*0.5], mode=2, max_tries=100, shield=0.6*r0)
     
-    
+
+    # indexing the polymers: polym[0] is the particle slice for the first vwf, polym[1] - for the second...
+    polym=[]
+    for i in range(N_vwf):
+        polym.append(system.part[mpc*i:mpc*(i+1)])
+
     next_part_id = mpc * N_vwf  
     print(" -- next particle id after VWF creation: ")
     print(next_part_id)  
@@ -83,23 +88,24 @@ def calc(var, loopsnumber):
     # AVB: setting the type of particles and changing mass of each monomer to 0.01
     system.part[:].type = vwf_type
     system.part[:].mass = monomer_mass
-    
+   
+
     # AVB: Shifting the polymer closer to the wall
-    print(system.part[:].pos)
-    px=[ ]
-    for p in system.part[:].pos:
-        px.append(p[0])
-    minx = np.min(px)
-    print("closest x coord = %f" % minx)
-    print("\nmoving polymer to closer to the wall")
-    for pid in range(next_part_id):
-        p = system.part[pid].pos
-        posx = p[0] - minx +bot_wall_dist
-        posy = p[1]
-        posz = p[2]
-        print([posx, posy, posz])
-        system.part[pid].pos = [posx, posy, posz]
-        
+    print("\nMoving polymers closer to the wall")
+    for i in range(N_vwf):
+        px=[ ]
+        for p in polym[i].pos:
+            px.append(p[0])
+    	    minx = np.min(px)
+            #print("closest x coord = %f" % minx)
+        for pid in polym[i].id:
+            p = system.part[pid].pos
+            posx = p[0] - minx + bot_wall_dist +2*a
+            posy = p[1]
+            posz = p[2]
+            #print(i, pid, [posx, posy, posz])
+            system.part[pid].pos = [posx, posy, posz]
+     
 
     # AVB: I suggest to add Lennard-Jones interaction between the monomers
     # AVB: to reproduce hydrophobicity
@@ -109,63 +115,15 @@ def calc(var, loopsnumber):
     # AVB: the potential
     system.non_bonded_inter[vwf_type,vwf_type].lennard_jones.set_params(
           epsilon = amplVwfVwf, sigma = r0/1.122,
-          shift = "auto", cutoff = rcutVwfVwf, min = r0*0.6)
-    
-    print("Warming up the polymer chain.")
-    ## For longer chains (>100) an extensive 
-    ## warmup is neccessary ...
-    system.time_step = 0.002
-    system.thermostat.set_langevin(kT=4.0e-6, gamma=1.0)
-    # AVB: Here the Langevin thermostat is needed, because we have not yet initialized the LB-fluid.
-    # AVB: And somehow it is necessary so that the polymer adopts the equilibrium conformation of the globule.
-    # AVB: you may skip this step
-    
-    for i in range(100):
-        system.force_cap = float(i) + 1
-        system.integrator.run(100)
-    
-    print("Warmup finished.")
-    system.force_cap = 0
-    system.integrator.run(100)
-    system.time_step = time_step
-    system.integrator.run(500)
-    
-    # AVB: the following command turns the Langevin thermostat on in line 49
-    system.thermostat.turn_off()
-    
-    # AVB: This command sets the velocities of all particles to zero
-    system.part[:].v = [0,0,0]
-    
-    # AVB: The density was too small here. I have set 1.0 for now.
-    # AVB: It would be necessary to recalculate, but the density of the liquid should not affect the movements of the polymer (this is how our physical model works).
-    lbf = espressomd.lb.LBFluid(agrid=1, dens=1.0, visc=1.0e2, tau=time_step, fric=0.01)
-    system.actors.add(lbf)
-    system.thermostat.set_lb(kT= 4.0e-6)
-    
-      
-    
-    print("Warming up the system with LB fluid.")
-    system.integrator.run(5000)
-    print("LB fluid warming finished.")
-    # AVB: after this you should have a completely collapsed polymer globule
-    # AVB: If you want to watch the process of globule formation in Paraview, just change 5000 to 0 in line 100
-    
-
-    # Setup boundaries
-    walls = [lbboundaries.LBBoundary() for k in range(2)]
-    walls[0].set_params(shape=shapes.Wall(normal=[1,0,0], dist = bot_wall_dist), velocity=[0,0,0])
-    walls[1].set_params(shape=shapes.Wall(normal=[-1,0,0], dist = -1.0*top_wall_dist), velocity=v)
-    for wall in walls:
-        system.lbboundaries.add(wall)
+          shift = "auto", cutoff = rcutVwfVwf, min = r0*0.7)
     
 
     # AVB:  Put some adhesive sites on the bottom wall     
     # AVB:  N is a number of collagen binding sites on a surface
     N = int(collagen_density * box_l* box_l)
     x_coord = np.array([bot_wall_dist+a] * N)
-    y_coord = np.array(box_l*np.random.rand(N))
+    y_coord = np.array(0.5*box_l*(1+np.random.rand(N)))
     z_coord = np.array(box_l*np.random.rand(N))   
-
 
 
     # AVB: assign collagen type
@@ -180,25 +138,78 @@ def calc(var, loopsnumber):
 
     # AVB: Setting adsorption potential vwf-coll
     ### AVB: parameters for the potential (amplitude and cut-off redius)
-    amplVwfCol = 500.0*kBT    # COLLAGEN ADSORPTION 
+    amplVwfCol = 200.0*kBT    # COLLAGEN ADSORPTION 
     rcutVwfCol = 1.2*r0
     ### And the potential
     system.non_bonded_inter[vwf_type,collagen_type].lennard_jones.set_params(
               epsilon = amplVwfCol, sigma = r0/1.122,
-              shift = "auto", cutoff = rcutVwfCol, min = r0*0.6) 
+              shift = "auto", cutoff = rcutVwfCol, min = r0*0.9) 
     
     # Setting repulsive potential vwf-wall
     
     system.constraints.add(shape=shapes.Wall(normal=[1,0,0], dist = (bot_wall_dist-2*a)), particle_type=wall_type, penetrable=True)       
     
     ### AVB: parameters for the potential (amplitude and cut-off radius)
-    amplVwlCol = 1e-5  
-    rcutVwlCol = 2.0*a
+    amplSS = 1e-5        # SOFT SPHERE
+    rcutSS = 2.0*a
     ### And the potential
-    system.non_bonded_inter[vwf_type,wall_type].soft_sphere.set_params(
-    a = amplVwlCol, n = 1.2,cutoff = rcutVwlCol, offset = -0.5*a)     
+    system.non_bonded_inter[vwf_type,wall_type].soft_sphere.set_params(a = amplSS, n = 1.2, cutoff = rcutSS, offset = -a)     
     
     
+#----------/*INITIAL WARMUP*/-----------------
+    print("Warming up the polymer chains.")
+    ## For longer chains (>100) an extensive 
+    ## warmup is neccessary ...
+    system.time_step = 0.002
+    system.thermostat.set_langevin(kT=4.0e-6, gamma=1.0)
+    # AVB: Here the Langevin thermostat is needed, because we have not yet initialized the LB-fluid.
+    # AVB: And somehow it is necessary so that the polymer adopts the equilibrium conformation of the globule.
+    # AVB: you may skip this step
+    
+    for i in range(100):
+        system.force_cap = float(i) + 1
+        system.integrator.run(1000)
+    
+    print("Warmup finished.")
+    system.force_cap = 0
+    system.integrator.run(1000)
+    system.time_step = time_step
+    system.integrator.run(5000)
+
+    
+    # AVB: the following command turns the Langevin thermostat on in line 49
+    system.thermostat.turn_off()
+    
+    # AVB: This command sets the velocities of all particles to zero
+    system.part[:].v = [0,0,0]
+    
+
+#--------------/*FLUID*/--------------------
+    # AVB: It would be necessary to recalculate, but the density of the liquid should not affect the movements of the polymer (this is how our physical model works).
+    lbf = espressomd.lb.LBFluid(agrid=1, dens=1.0, visc=1.0e2, tau=time_step, fric=0.01)
+    system.actors.add(lbf)
+    system.thermostat.set_lb(kT= 4.0e-6)
+    
+    print("Warming up the system with LB fluid.")
+    system.integrator.run(5000)
+    print("LB fluid warming finished.")
+    # AVB: after this you should have a completely collapsed polymer globule
+    # AVB: If you want to watch the process of globule formation in Paraview, just change 5000 to 0 in line 100
+    
+
+
+    # Setup boundaries
+    walls = [lbboundaries.LBBoundary() for k in range(2)]
+    walls[0].set_params(shape=shapes.Wall(normal=[1,0,0], dist = bot_wall_dist), velocity=[0,0,0])
+    walls[1].set_params(shape=shapes.Wall(normal=[-1,0,0], dist = -1.0*top_wall_dist), velocity=v)
+    for wall in walls:
+        system.lbboundaries.add(wall)
+    
+#---------------------------------
+
+
+
+
     # configure correlators
     com_pos = ComPosition(ids=(0,))
     c = Correlator(obs1 = com_pos, tau_lin=16, tau_max=loops*step_per_loop, delta_N=1,
