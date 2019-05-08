@@ -218,7 +218,7 @@ def calc(var, loopsnumber):
     
     print("Sampling started.")
     print("length after warmup:")
-    print(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0])
+    print(system.analysis.calc_re(chain_start=0, number_of_chains=N_vwf, chain_length=mpc-1)[0])
     
     lengths = []
     
@@ -227,7 +227,7 @@ def calc(var, loopsnumber):
     for i in range(loops):
         system.integrator.run(step_per_loop)
         system.analysis.append()
-        lengths.append(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0]) 
+        lengths.append(system.analysis.calc_re(chain_start=0, number_of_chains=N_vwf, chain_length=mpc-1)[0]) 
         lbf.print_vtk_velocity(outdir+"/"+str(vy)+"fluid%04i.vtk" %i)
         system.part.writevtk(outdir+"/"+str(vy)+"coll%04i.vtk" %i, types=[collagen_type])  
         system.part.writevtk(outdir+"/"+str(vy)+"vwf%04i.vtk" %i, types=[0])  
@@ -252,7 +252,7 @@ def calc(var, loopsnumber):
         
     for i in range(100):
         system.integrator.run(step_per_loop)
-        lengths.append(system.analysis.calc_re(chain_start=0, number_of_chains=1, chain_length=mpc-1)[0])
+        lengths.append(system.analysis.calc_re(chain_start=0, number_of_chains=N_vwf, chain_length=mpc-1)[0])
     
     system.part.writevtk(outdir+"/"+str(vy)+"vwf_all[r0=2,kBT=4]intheEND.vtk")
         
@@ -280,7 +280,7 @@ def calc(var, loopsnumber):
     savetxt(outdir+"/msd_nom"+str(mpc)+".dat", corr)
     
     with open(outdir+"/rh_out.dat","a") as datafile:
-        rh = system.analysis.calc_rh(chain_start=0, number_of_chains=1, chain_length=mpc-1)
+        rh = system.analysis.calc_rh(chain_start=0, number_of_chains=N_vwf, chain_length=mpc-1)
         datafile.write(str(mpc)+ "    " + str(rh[0])+"\n")
     
 
